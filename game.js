@@ -63,13 +63,20 @@ const playerShadow=new THREE.Mesh(new THREE.CircleGeometry(1.5,32),new THREE.Mes
 const enemies=[], asteroids=[], bullets=[], particles=[];
 function makeEnemy(){
  const group=new THREE.Group();
- const core=new THREE.Mesh(new THREE.OctahedronGeometry(.72,1),enemyMat);core.scale.set(1.25,.62,1);group.add(core);
- const wing=new THREE.Mesh(new THREE.OctahedronGeometry(1,0),mat(0x552d55,0x9b174e,.85,.58,.34));wing.scale.set(1.65,.18,.55);wing.rotation.z=Math.PI/4;group.add(wing);
- const wing2=wing.clone();wing2.rotation.z=-Math.PI/4;group.add(wing2);
- const eye=new THREE.Mesh(new THREE.SphereGeometry(.22,12,10),enemyGlow);eye.scale.set(1,.7,.5);eye.position.z=-.55;group.add(eye);
- const spikes=new THREE.Mesh(new THREE.ConeGeometry(.45,.9,5),enemyMat);spikes.rotation.x=-Math.PI/2;spikes.position.z=.55;group.add(spikes);
- const light=new THREE.PointLight(0xff2673,1.2,6);light.position.z=-.2;group.add(light);
- group.userData={radius:.92,baseX:0,phase:Math.random()*6.28, speed:14, wobble:1};return group;
+ const hull=mat(0x8e9ba8,0x343b53,.45,.82,.24);
+ const underside=mat(0x34384e,0x74194b,.7,.72,.3);
+ const glass=mat(0x56dbe0,0x25dcea,1.8,.48,.14);
+ // Tilt the saucer toward the flight lane so its classic disc-and-dome profile reads clearly.
+ const craft=new THREE.Group();craft.rotation.x=-.82;group.add(craft);
+ const rim=new THREE.Mesh(new THREE.CylinderGeometry(.56,.78,.2,28,1),hull);craft.add(rim);
+ const lowerRim=new THREE.Mesh(new THREE.CylinderGeometry(.77,.64,.12,28,1),underside);lowerRim.position.y=-.12;craft.add(lowerRim);
+ const dome=new THREE.Mesh(new THREE.SphereGeometry(.43,20,12,0,Math.PI*2,0,Math.PI/2),glass);dome.position.y=.095;craft.add(dome);
+ const band=new THREE.Mesh(new THREE.TorusGeometry(.68,.045,8,32),enemyGlow);band.rotation.x=Math.PI/2;band.position.y=-.015;craft.add(band);
+ const undersideCore=new THREE.Mesh(new THREE.SphereGeometry(.2,14,10),enemyGlow);undersideCore.scale.set(1,.52,1);undersideCore.position.y=-.2;craft.add(undersideCore);
+ const portholeGeo=new THREE.SphereGeometry(.075,10,8);
+ for(let i=0;i<10;i++){const angle=i/10*Math.PI*2;const porthole=new THREE.Mesh(portholeGeo,i%2?enemyGlow:glass);porthole.position.set(Math.cos(angle)*.66,-.02,Math.sin(angle)*.66);porthole.scale.set(1,.72,1);craft.add(porthole);}
+ const light=new THREE.PointLight(0xff2673,1.6,7);light.position.set(0,-.2,0);group.add(light);
+ group.userData={radius:1.02,baseX:0,phase:Math.random()*6.28,speed:14,wobble:1};return group;
 }
 function makeAsteroid(size=1){
  const mesh=new THREE.Mesh(new THREE.DodecahedronGeometry(1,1),asteroidMat.clone());
