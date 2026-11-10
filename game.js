@@ -24,7 +24,11 @@ const trimMat = mat(0x9ceeff, 0x20bde9, 1.7, .65, .25);
 const darkMat = mat(0x0b162b, 0x070b1e, .6, .7, .3);
 const enemyMat = mat(0x9c456d, 0x8d123f, 1.05, .6, .27);
 const enemyGlow = mat(0xffa4c4, 0xff286a, 2.3, .3, .22);
-const asteroidMat = mat(0x544d68, 0x19162d, .25, .48, .82);
+const asteroidMat = mat(0x75401f, 0x321205, .32, .3, .88);
+const asteroidFlameOuter = new THREE.MeshBasicMaterial({ color: 0xff5418, transparent: true, opacity: .9, depthWrite: false });
+const asteroidFlameInner = new THREE.MeshBasicMaterial({ color: 0xffd05a, transparent: true, opacity: .92, depthWrite: false });
+const asteroidFlameGeo = new THREE.ConeGeometry(.42, 1.65, 8);
+const asteroidFlameCoreGeo = new THREE.ConeGeometry(.23, 1.05, 7);
 const bulletMat = new THREE.MeshBasicMaterial({ color: 0x68f7ff });
 const starGeo = new THREE.BufferGeometry();
 const starPositions = new Float32Array(1800 * 3);
@@ -79,12 +83,44 @@ function makeEnemy(){
  group.userData={radius:1.02,baseX:0,phase:Math.random()*6.28,speed:14,wobble:1};return group;
 }
 function makeAsteroid(size=1){
- const mesh=new THREE.Mesh(new THREE.DodecahedronGeometry(1,1),asteroidMat.clone());
- mesh.material.color.setHSL(.65+Math.random()*.1,.18,.30+Math.random()*.12);
- mesh.geometry.attributes.position.array.forEach((v,i)=>{mesh.geometry.attributes.position.array[i]*=.83+Math.random()*.34});mesh.geometry.computeVertexNormals();
- const s=size*(.78+Math.random()*.45);mesh.scale.set(s*(.75+Math.random()*.55),s*(.7+Math.random()*.5),s*(.8+Math.random()*.5));
- const ridge=new THREE.Mesh(new THREE.IcosahedronGeometry(.82,0),new THREE.MeshBasicMaterial({color:0xb8a5c1,wireframe:true,transparent:true,opacity:.10}));mesh.add(ridge);ridge.scale.set(1.05,1,1.1);
- mesh.userData={radius:s*.92,spinX:(Math.random()-.5)*1.5,spinY:(Math.random()-.5)*1.7,drift:(Math.random()-.5)*.8};return mesh;
+ const group=new THREE.Group();
+ const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(1,1),asteroidMat.clone());
+ rock.material.color.setHSL(.055+Math.random()*.035,.52+Math.random()*.2,.2+Math.random()*.13);
+ const positions=rock.geometry.attributes.position;
+ for(let i=0;i<positions.count;i++){
+  const x=positions.getX(i),y=positions.getY(i),z=positions.getZ(i);
+  const r=Math.hypot(x,y,z);
+  const warp=.75 + Math.random()*.9;
+  const nx=x*warp + (Math.random()-.5)*.7;
+  const ny=y*warp + (Math.random()-.5)*.7;
+  const nz=z*warp + (Math.random()-.5)*.7;
+  const len=Math.hypot(nx,ny,nz) || 1;
+  positions.setXYZ(i,nx*(1.05+r*.06)/len,ny*(1.05+r*.06)/len,nz*(1.05+r*.06)/len);
+ }
+ rock.geometry.computeVertexNormals();
+ const chunkMat=new THREE.MeshStandardMaterial({color:0x754421,metalness:.12,roughness:.94,emissive:0x301204,emissiveIntensity:.24});
+ for(let i=0;i<4;i++){
+  const shard=new THREE.Mesh(new THREE.IcosahedronGeometry(.28 + Math.random()*.18,0),chunkMat);
+  shard.position.set((Math.random()-.5)*1.4,(Math.random()-.5)*1.2,(Math.random()-.5)*1.4);
+  shard.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);
+  shard.scale.set(1.3 + Math.random()*.9,1.1 + Math.random()*.8,1.2 + Math.random()*.9);
+  group.add(shard);
+ }
+ group.add(rock);
+  const flames=[];
+  for(const [x,y,scale] of [[0,0,1],[-.48,.22,.62],[.42,-.3,.55]]){
+   const flame=new THREE.Group();flame.position.set(x,y,.72);flame.rotation.x=Math.PI/2;flame.rotation.z=(Math.random()-.5)*.5;flame.scale.setScalar(scale);flame.userData.baseScale=scale;
+   const outer=new THREE.Mesh(asteroidFlameGeo,asteroidFlameOuter);outer.position.y=.35;flame.add(outer);
+   const inner=new THREE.Mesh(asteroidFlameCoreGeo,asteroidFlameInner);inner.position.y=.2;flame.add(inner);
+   group.add(flame);flames.push(flame);
+  }
+ const wire=new THREE.Mesh(new THREE.IcosahedronGeometry(1.08,0),new THREE.MeshBasicMaterial({color:0xc67b3a,wireframe:true,transparent:true,opacity:.12}));
+ wire.scale.set(1.18,1.12,1.18);
+ group.add(wire);
+ const s=size*(.78+Math.random()*.58);
+ group.scale.set(s*(.72+Math.random()*.42),s*(.7+Math.random()*.45),s*(.78+Math.random()*.4));
+ group.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);
+ group.userData={radius:s*.92,spinX:(Math.random()-.5)*1.5,spinY:(Math.random()-.5)*1.7,drift:(Math.random()-.5)*.8,flames,flamePhase:Math.random()*6.28};return group;
 }
 function makeBullet(x,y,z){
  const g=new THREE.Group();
@@ -142,13 +178,13 @@ function update(dt,time){
  // The cannon runs continuously; the touch/space input tightens the firing cadence.
  shootTimer-=dt;if(shootTimer<=0){makeBullet(player.position.x,player.position.y,1.3);shootTimer=fireHeld ? .105 : .21;playTone(760,.035,'square',.012);}
  spawnTimer-=dt;const difficulty=Math.min(2.4,elapsed/45);if(spawnTimer<=0){spawnEnemy();if(Math.random()<.36+difficulty*.1)spawnEnemy();spawnTimer=Math.max(.56,1.4-difficulty*.25+Math.random()*.38);}
- if(Math.random()<dt*(.72+difficulty*.18))spawnRock();
+ if(Math.random()<dt*(.3+difficulty*.1))spawnRock();
  const speed=15+Math.min(11,elapsed*.12);
  for(let i=enemies.length-1;i>=0;i--){const e=enemies[i],d=e.userData;e.position.z-=dt*(speed*(.88+Math.sin(d.phase)*.06));e.position.x=d.baseX+Math.sin(time*.0015+d.phase)*d.wobble;e.position.y+=Math.sin(time*.002+d.phase)*dt*.42;e.rotation.z=Math.sin(time*.0014+d.phase)*.18;e.rotation.y+=dt*.7;
   if(e.position.z<=2&&e.position.z>=-1){const dist=Math.hypot(e.position.x-player.position.x,e.position.y-player.position.y);if(dist<d.radius+1.05)damage();else if(e.position.z<.1){scoreCarry+=25;setScore(scoreCarry);showToast('CLOSE CALL · +25');} }
   if(e.position.z< -3){scene.remove(e);enemies.splice(i,1);}
  }
- for(let i=asteroids.length-1;i>=0;i--){const a=asteroids[i],d=a.userData;a.position.z-=dt*(speed*.82);a.position.x+=d.drift*dt;a.rotation.x+=d.spinX*dt;a.rotation.y+=d.spinY*dt;
+ for(let i=asteroids.length-1;i>=0;i--){const a=asteroids[i],d=a.userData;a.position.z-=dt*(speed*.82);a.position.x+=d.drift*dt;a.rotation.x+=d.spinX*dt;a.rotation.y+=d.spinY*dt;for(let j=0;j<d.flames.length;j++){const f=d.flames[j],pulse=.78+.22*Math.sin(time*.018+d.flamePhase+j*1.7);f.scale.y=f.userData.baseScale*pulse;}
   if(a.position.z<=2&&a.position.z>=-1){const dist=Math.hypot(a.position.x-player.position.x,a.position.y-player.position.y);if(dist<d.radius+1.15)damage();else if(a.position.z<.15){scoreCarry+=40;setScore(scoreCarry);showToast('ASTEROID EVADED · +40');}}
   if(a.position.z< -4){scene.remove(a);asteroids.splice(i,1);}
  }
@@ -187,5 +223,5 @@ const fireBtn=document.querySelector('#fireBtn');fireBtn.addEventListener('point
 
 // A few distant contacts make the opening screen feel alive, but stay out of the flight lane.
 for(let i=0;i<3;i++){const e=makeEnemy();e.userData.baseX=(Math.random()-.5)*15;e.position.set(e.userData.baseX,(Math.random()-.5)*9,25+i*18);scene.add(e);enemies.push(e);}
-for(let i=0;i<5;i++){const a=makeAsteroid(.8+Math.random()*.9);a.position.set((Math.random()-.5)*20,(Math.random()-.5)*12,35+i*17);scene.add(a);asteroids.push(a);}
+for(let i=0;i<3;i++){const a=makeAsteroid(.8+Math.random()*.9);a.position.set((Math.random()-.5)*20,(Math.random()-.5)*12,35+i*17);scene.add(a);asteroids.push(a);}
 setState('menu');
